@@ -39,15 +39,29 @@ const upload = multer({
  */
 router.post('/upload', upload.single('cv'), async (req: Request, res: Response) => {
   try {
+    console.log('Upload request received');
+    console.log('File:', req.file);
+    console.log('Body:', req.body);
+
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
     const { firstName, lastName, email, phone, location } = req.body;
 
+    // Validate required fields
+    if (!firstName || !lastName || !email) {
+      return res.status(400).json({
+        error: 'Missing required fields: firstName, lastName, and email are required'
+      });
+    }
+
     // Process CV
     const candidateName = `${firstName} ${lastName}`;
+    console.log('Processing CV for:', candidateName);
+
     const processed = await cvParserService.processCV(req.file.path, candidateName);
+    console.log('CV processed successfully');
 
     // Create candidate
     const candidate = await prisma.candidate.create({
@@ -69,9 +83,18 @@ router.post('/upload', upload.single('cv'), async (req: Request, res: Response) 
     });
 
     res.status(201).json(candidate);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Upload error:', error);
-    res.status(500).json({ error: 'Failed to upload CV' });
+
+    // Provide more specific error messages
+    if (error.message?.includes('Unique constraint')) {
+      return res.status(400).json({ error: 'A candidate with this email already exists' });
+    }
+
+    res.status(500).json({
+      error: 'Failed to upload CV',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

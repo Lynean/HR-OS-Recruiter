@@ -2,6 +2,7 @@ import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+import { ensureDirectories } from './utils/startup';
 
 // Import routes
 import candidateRoutes from './routes/candidate.routes';
@@ -77,6 +78,9 @@ app.use((err: Error, req: Request, res: Response, next: any) => {
 // Start server
 async function startServer() {
   try {
+    // Ensure required directories exist
+    ensureDirectories();
+
     await prisma.$connect();
     console.log('✓ Database connected');
 
