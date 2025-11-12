@@ -51,9 +51,16 @@ export const workflowAPI = {
   startOnboarding: (data: any) => api.post('/workflow/onboarding', data),
   assignTraining: (data: any) => api.post('/workflow/training', data),
   assignOutsourcing: (data: any) => api.post('/workflow/outsource', data),
+  getInterviews: () => api.get('/workflow/interviews'),
+  getOffers: () => api.get('/workflow/offers'),
+  getOnboardings: () => api.get('/workflow/onboardings'),
+  getTrainings: () => api.get('/workflow/trainings'),
+  getOutsourcings: () => api.get('/workflow/outsourcings'),
+  getStatistics: () => api.get('/workflow/statistics'),
 };
 
 export const kpiAPI = {
+  getAll: () => api.get('/kpis'),
   create: (data: any) => api.post('/kpis', data),
   updateProgress: (id: string, current: number, userId: string) =>
     api.put(`/kpis/${id}/progress`, { current, userId }),

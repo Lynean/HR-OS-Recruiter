@@ -57,4 +57,42 @@ router.get('/summary', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Get all KPIs
+ */
+router.get('/', async (req: Request, res: Response) => {
+  try {
+    const { prisma } = await import('../index');
+    const kpis = await prisma.kPI.findMany({
+      include: {
+        candidate: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        },
+        assigner: {
+          select: {
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+
+    const kpisWithProgress = kpis.map(kpi => ({
+      ...kpi,
+      progress: (kpi.current / kpi.target) * 100
+    }));
+
+    res.json(kpisWithProgress);
+  } catch (error) {
+    console.error('Get KPIs error:', error);
+    res.status(500).json({ error: 'Failed to get KPIs' });
+  }
+});
+
 export default router;

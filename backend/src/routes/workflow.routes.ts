@@ -81,4 +81,151 @@ router.post('/outsource', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Get all interviews
+ */
+router.get('/interviews', async (req: Request, res: Response) => {
+  try {
+    const { prisma } = await import('../index');
+    const interviews = await prisma.interview.findMany({
+      include: {
+        candidate: true,
+        jobDescription: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    res.json(interviews);
+  } catch (error) {
+    console.error('Get interviews error:', error);
+    res.status(500).json({ error: 'Failed to get interviews' });
+  }
+});
+
+/**
+ * Get all offers
+ */
+router.get('/offers', async (req: Request, res: Response) => {
+  try {
+    const { prisma } = await import('../index');
+    const offers = await prisma.offer.findMany({
+      include: {
+        candidate: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    res.json(offers);
+  } catch (error) {
+    console.error('Get offers error:', error);
+    res.status(500).json({ error: 'Failed to get offers' });
+  }
+});
+
+/**
+ * Get all onboardings
+ */
+router.get('/onboardings', async (req: Request, res: Response) => {
+  try {
+    const { prisma } = await import('../index');
+    const onboardings = await prisma.onboarding.findMany({
+      include: {
+        candidate: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    res.json(onboardings);
+  } catch (error) {
+    console.error('Get onboardings error:', error);
+    res.status(500).json({ error: 'Failed to get onboardings' });
+  }
+});
+
+/**
+ * Get all trainings
+ */
+router.get('/trainings', async (req: Request, res: Response) => {
+  try {
+    const { prisma } = await import('../index');
+    const trainings = await prisma.training.findMany({
+      include: {
+        candidate: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    res.json(trainings);
+  } catch (error) {
+    console.error('Get trainings error:', error);
+    res.status(500).json({ error: 'Failed to get trainings' });
+  }
+});
+
+/**
+ * Get all outsourcings
+ */
+router.get('/outsourcings', async (req: Request, res: Response) => {
+  try {
+    const { prisma } = await import('../index');
+    const outsourcings = await prisma.outsourcing.findMany({
+      include: {
+        candidate: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    res.json(outsourcings);
+  } catch (error) {
+    console.error('Get outsourcings error:', error);
+    res.status(500).json({ error: 'Failed to get outsourcings' });
+  }
+});
+
+/**
+ * Get workflow statistics
+ */
+router.get('/statistics', async (req: Request, res: Response) => {
+  try {
+    const { prisma } = await import('../index');
+
+    const [
+      totalInterviews,
+      scheduledInterviews,
+      totalOffers,
+      pendingOffers,
+      acceptedOffers,
+      totalOnboardings,
+      activeOnboardings,
+      totalTrainings,
+      activeTrainings,
+      totalOutsourcings,
+      activeOutsourcings
+    ] = await Promise.all([
+      prisma.interview.count(),
+      prisma.interview.count({ where: { status: 'SCHEDULED' } }),
+      prisma.offer.count(),
+      prisma.offer.count({ where: { status: 'PENDING' } }),
+      prisma.offer.count({ where: { status: 'ACCEPTED' } }),
+      prisma.onboarding.count(),
+      prisma.onboarding.count({ where: { status: 'IN_PROGRESS' } }),
+      prisma.training.count(),
+      prisma.training.count({ where: { status: 'IN_PROGRESS' } }),
+      prisma.outsourcing.count(),
+      prisma.outsourcing.count({ where: { status: 'ACTIVE' } })
+    ]);
+
+    res.json({
+      interviews: { total: totalInterviews, scheduled: scheduledInterviews },
+      offers: { total: totalOffers, pending: pendingOffers, accepted: acceptedOffers },
+      onboardings: { total: totalOnboardings, active: activeOnboardings },
+      trainings: { total: totalTrainings, active: activeTrainings },
+      outsourcings: { total: totalOutsourcings, active: activeOutsourcings }
+    });
+  } catch (error) {
+    console.error('Get statistics error:', error);
+    res.status(500).json({ error: 'Failed to get statistics' });
+  }
+});
+
 export default router;
