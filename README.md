@@ -29,13 +29,22 @@ A comprehensive HR Recruitment Operating System for managing the entire recruitm
 - Training program assignment
 - Onsite deployment management
 
-### 5. KPI Management
+### 5. AI-Powered Task Management 🤖 **NEW**
+- **Automatic Subtask Generation**: AI breaks down complex tasks into actionable subtasks
+- **Save Manager Time**: Generate comprehensive task breakdowns in seconds
+- **Task Templates**: 16+ pre-configured templates for common HR processes
+- **Smart Prioritization**: AI suggests priorities and time estimates
+- **Progress Tracking**: Track task and subtask completion
+- **Customizable Workflows**: Create custom tasks with AI assistance
+- **Real-time Updates**: Instant status updates and team visibility
+
+### 6. KPI Management
 - Task assignment and tracking
 - Performance metrics
 - Goal setting and monitoring
 - Individual and team KPIs
 
-### 6. Reporting & Dashboard
+### 7. Reporting & Dashboard
 - Real-time analytics
 - Recruitment funnel visualization
 - Time-to-hire metrics
@@ -166,6 +175,17 @@ npm start
 - `POST /api/workflow/onboarding` - Start onboarding process
 - `POST /api/workflow/training` - Assign training
 - `POST /api/workflow/outsource` - Assign to customer site
+
+### Tasks 🤖 **NEW**
+- `POST /api/tasks` - Create task with AI-generated subtasks
+- `POST /api/tasks/:id/generate-subtasks` - Generate subtasks for existing task
+- `GET /api/tasks/user/:userId` - Get all tasks for a user
+- `GET /api/tasks/:id` - Get task details with subtasks
+- `PATCH /api/tasks/:id/status` - Update task status
+- `POST /api/tasks/:id/comments` - Add comment to task
+- `GET /api/tasks/statistics/summary` - Get task statistics
+- `GET /api/tasks/templates/all` - Get task templates
+- `POST /api/tasks/templates/:id/create-task` - Create task from template
 
 ### KPIs
 - `POST /api/kpis` - Create KPI

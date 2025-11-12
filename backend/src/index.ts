@@ -13,6 +13,7 @@ import reportRoutes from './routes/report.routes';
 import templateRoutes from './routes/template.routes';
 import authRoutes from './routes/auth.routes';
 import geminiRoutes from './routes/gemini.routes';
+import taskRoutes from './routes/task.routes';
 
 dotenv.config();
 
@@ -37,6 +38,7 @@ app.use('/api/kpis', kpiRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/gemini', geminiRoutes);
+app.use('/api/tasks', taskRoutes);
 
 // Health check
 app.get('/health', (req: Request, res: Response) => {
@@ -57,7 +59,8 @@ app.get('/', (req: Request, res: Response) => {
       kpis: '/api/kpis',
       reports: '/api/reports',
       templates: '/api/templates',
-      gemini: '/api/gemini'
+      gemini: '/api/gemini',
+      tasks: '/api/tasks'
     }
   });
 });

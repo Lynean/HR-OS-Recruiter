@@ -235,6 +235,20 @@ Return format:
   }
 
   /**
+   * Generate content using Gemini (generic method)
+   */
+  async generateContent(prompt: string, model: string = 'gemini-1.5-pro') {
+    try {
+      const genModel = genAI.getGenerativeModel({ model });
+      const result = await genModel.generateContent(prompt);
+      return result.response.text();
+    } catch (error) {
+      console.error('Error generating content:', error);
+      throw new Error('Failed to generate content using Gemini');
+    }
+  }
+
+  /**
    * Delete uploaded file from Gemini
    */
   async deleteFile(fileId: string) {

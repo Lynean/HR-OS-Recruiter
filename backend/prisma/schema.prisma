@@ -22,6 +22,10 @@ model User {
   interviews      Interview[]
   kpis            KPI[]
   activities      Activity[]
+  assignedTasks   Task[]           @relation("AssignedTasks")
+  createdTasks    Task[]           @relation("CreatedTasks")
+  taskComments    TaskComment[]
+  taskAttachments TaskAttachment[]
 }
 
 enum UserRole {
@@ -57,6 +61,7 @@ model Candidate {
   outsourcing       Outsourcing?
   kpis              KPI[]
   activities        Activity[]
+  tasks             Task[]
 }
 
 enum CandidateStatus {
@@ -392,6 +397,118 @@ model ProposalTemplate {
   sections        Json     // Structured proposal sections
   geminiFileId    String?  // For proposal generation
   variables       String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Task {
+  id              String       @id @default(uuid())
+  title           String
+  description     String?      @db.Text
+  taskType        TaskType
+  priority        Priority     @default(MEDIUM)
+  status          TaskStatus   @default(TODO)
+  candidateId     String?
+  assignedTo      String?
+  createdBy       String
+  parentTaskId    String?      // For subtasks
+  dueDate         DateTime?
+  startDate       DateTime?
+  completedDate   DateTime?
+  estimatedHours  Float?
+  actualHours     Float?
+  tags            String[]
+  metadata        Json?        // Store additional context
+  aiGenerated     Boolean      @default(false) // Track if subtasks were AI-generated
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  candidate       Candidate?   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  assignee        User?        @relation("AssignedTasks", fields: [assignedTo], references: [id])
+  creator         User         @relation("CreatedTasks", fields: [createdBy], references: [id])
+  parentTask      Task?        @relation("TaskSubtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
+  subtasks        Task[]       @relation("TaskSubtasks")
+  comments        TaskComment[]
+  attachments     TaskAttachment[]
+
+  @@index([candidateId])
+  @@index([assignedTo])
+  @@index([createdBy])
+  @@index([parentTaskId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+enum TaskType {
+  RECRUITMENT
+  INTERVIEW_PREP
+  ONBOARDING
+  TRAINING
+  CLIENT_DEPLOYMENT
+  KPI_REVIEW
+  DOCUMENTATION
+  FOLLOW_UP
+  GENERAL
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+model TaskComment {
+  id              String   @id @default(uuid())
+  taskId          String
+  userId          String
+  comment         String   @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  task            Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id])
+
+  @@index([taskId])
+}
+
+model TaskAttachment {
+  id              String   @id @default(uuid())
+  taskId          String
+  fileName        String
+  filePath        String
+  fileType        String?
+  fileSize        Int?
+  uploadedBy      String
+  createdAt       DateTime @default(now())
+
+  task            Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploader        User     @relation(fields: [uploadedBy], references: [id])
+
+  @@index([taskId])
+}
+
+model TaskTemplate {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  description     String?  @db.Text
+  taskType        TaskType
+  category        String?
+  defaultPriority Priority @default(MEDIUM)
+  estimatedHours  Float?
+  checklist       Json     // Array of subtask templates
+  tags            String[]
+  aiEnhanced      Boolean  @default(false) // Use AI to enhance subtasks
+  usageCount      Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
