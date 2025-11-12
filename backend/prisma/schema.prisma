@@ -1,0 +1,397 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(RECRUITER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobDescriptions JobDescription[]
+  interviews      Interview[]
+  kpis            KPI[]
+  activities      Activity[]
+}
+
+enum UserRole {
+  ADMIN
+  RECRUITER
+  MANAGER
+  HR_MANAGER
+}
+
+model Candidate {
+  id                String            @id @default(uuid())
+  firstName         String
+  lastName          String
+  email             String            @unique
+  phone             String?
+  location          String?
+  cvFilePath        String?
+  cvText            String?           @db.Text
+  geminiFileId      String?           // Gemini API file ID for file search
+  parsedData        Json?             // Parsed CV data
+  skills            String[]
+  experience        Float?            // Years of experience
+  education         String[]
+  status            CandidateStatus   @default(NEW)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  matches           CandidateMatch[]
+  interviews        Interview[]
+  offers            Offer[]
+  onboarding        Onboarding?
+  training          Training[]
+  outsourcing       Outsourcing?
+  kpis              KPI[]
+  activities        Activity[]
+}
+
+enum CandidateStatus {
+  NEW
+  SCREENING
+  INTERVIEWED
+  OFFERED
+  ACCEPTED
+  REJECTED
+  ONBOARDING
+  TRAINING
+  ACTIVE
+  OUTSOURCED
+  INACTIVE
+}
+
+model JobDescription {
+  id                String            @id @default(uuid())
+  title             String
+  department        String?
+  location          String?
+  employmentType    EmploymentType    @default(FULL_TIME)
+  description       String            @db.Text
+  requirements      String            @db.Text
+  responsibilities  String            @db.Text
+  requiredSkills    String[]
+  preferredSkills   String[]
+  minExperience     Float?
+  maxExperience     Float?
+  salaryRange       String?
+  geminiFileId      String?           // Gemini API file ID for matching
+  status            JDStatus          @default(ACTIVE)
+  createdBy         String
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  creator           User              @relation(fields: [createdBy], references: [id])
+  matches           CandidateMatch[]
+  interviews        Interview[]
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  TEMPORARY
+}
+
+enum JDStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+  ON_HOLD
+}
+
+model CandidateMatch {
+  id              String         @id @default(uuid())
+  candidateId     String
+  jobDescriptionId String
+  overallScore    Float          // 0-100
+  skillScore      Float
+  experienceScore Float
+  educationScore  Float
+  matchDetails    Json           // Detailed matching breakdown
+  geminiAnalysis  String?        @db.Text // AI-generated analysis
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  candidate       Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobDescription  JobDescription @relation(fields: [jobDescriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateId, jobDescriptionId])
+  @@index([overallScore])
+}
+
+model Interview {
+  id              String          @id @default(uuid())
+  candidateId     String
+  jobDescriptionId String
+  scheduledBy     String
+  interviewDate   DateTime
+  interviewType   InterviewType
+  location        String?
+  meetingLink     String?
+  status          InterviewStatus @default(SCHEDULED)
+  feedback        String?         @db.Text
+  rating          Int?            // 1-5
+  notes           String?         @db.Text
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  candidate       Candidate       @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobDescription  JobDescription  @relation(fields: [jobDescriptionId], references: [id], onDelete: Cascade)
+  scheduler       User            @relation(fields: [scheduledBy], references: [id])
+}
+
+enum InterviewType {
+  PHONE_SCREEN
+  VIDEO
+  IN_PERSON
+  TECHNICAL
+  HR
+  FINAL
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  RESCHEDULED
+  NO_SHOW
+}
+
+model Offer {
+  id              String       @id @default(uuid())
+  candidateId     String
+  position        String
+  department      String?
+  salary          Float
+  startDate       DateTime?
+  status          OfferStatus  @default(PENDING)
+  sentDate        DateTime     @default(now())
+  responseDate    DateTime?
+  notes           String?      @db.Text
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  candidate       Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  NEGOTIATING
+}
+
+model Onboarding {
+  id              String           @id @default(uuid())
+  candidateId     String           @unique
+  startDate       DateTime
+  completionDate  DateTime?
+  status          OnboardingStatus @default(IN_PROGRESS)
+  checklist       Json             // Onboarding tasks checklist
+  documents       Json             // Required documents
+  notes           String?          @db.Text
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  candidate       Candidate        @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+}
+
+enum OnboardingStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+}
+
+model Training {
+  id              String         @id @default(uuid())
+  candidateId     String
+  trainingName    String
+  description     String?        @db.Text
+  startDate       DateTime
+  endDate         DateTime?
+  status          TrainingStatus @default(SCHEDULED)
+  completionRate  Float?         // 0-100
+  assessment      String?        @db.Text
+  certificateUrl  String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  candidate       Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+}
+
+enum TrainingStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Outsourcing {
+  id              String            @id @default(uuid())
+  candidateId     String            @unique
+  clientName      String
+  clientLocation  String?
+  projectName     String
+  startDate       DateTime
+  endDate         DateTime?
+  status          OutsourcingStatus @default(ACTIVE)
+  role            String
+  responsibilities String?          @db.Text
+  contactPerson   String?
+  contactEmail    String?
+  notes           String?          @db.Text
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  candidate       Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+}
+
+enum OutsourcingStatus {
+  ASSIGNED
+  ACTIVE
+  COMPLETED
+  ON_HOLD
+  TERMINATED
+}
+
+model KPI {
+  id              String     @id @default(uuid())
+  candidateId     String
+  assignedBy      String
+  title           String
+  description     String?    @db.Text
+  metric          String     // e.g., "Number of tasks completed", "Code quality score"
+  target          Float
+  current         Float      @default(0)
+  unit            String?    // e.g., "tasks", "points", "%"
+  startDate       DateTime
+  endDate         DateTime
+  status          KPIStatus  @default(IN_PROGRESS)
+  notes           String?    @db.Text
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  candidate       Candidate  @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  assigner        User       @relation(fields: [assignedBy], references: [id])
+}
+
+enum KPIStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+  CANCELLED
+}
+
+model EmailTemplate {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  subject         String
+  body            String   @db.Text
+  type            TemplateType
+  variables       String[] // Available variables like {{candidateName}}, {{position}}
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model DocumentTemplate {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  content         String   @db.Text
+  type            TemplateType
+  variables       String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum TemplateType {
+  INTERVIEW_INVITATION
+  INTERVIEW_CONFIRMATION
+  INTERVIEW_REJECTION
+  OFFER_LETTER
+  ACCEPTANCE_LETTER
+  ONBOARDING_WELCOME
+  TRAINING_ASSIGNMENT
+  OUTSOURCING_ASSIGNMENT
+  KPI_ASSIGNMENT
+  GENERAL
+}
+
+model Activity {
+  id              String       @id @default(uuid())
+  candidateId     String?
+  userId          String
+  activityType    ActivityType
+  description     String
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+
+  candidate       Candidate?   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [userId], references: [id])
+
+  @@index([candidateId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+enum ActivityType {
+  CV_UPLOADED
+  CANDIDATE_CREATED
+  MATCH_GENERATED
+  INTERVIEW_SCHEDULED
+  INTERVIEW_COMPLETED
+  OFFER_SENT
+  OFFER_ACCEPTED
+  OFFER_REJECTED
+  ONBOARDING_STARTED
+  ONBOARDING_COMPLETED
+  TRAINING_ASSIGNED
+  TRAINING_COMPLETED
+  OUTSOURCING_ASSIGNED
+  KPI_CREATED
+  KPI_UPDATED
+  STATUS_CHANGED
+}
+
+model SkillDatabase {
+  id              String   @id @default(uuid())
+  skillName       String   @unique
+  category        String?
+  description     String?  @db.Text
+  relatedSkills   String[]
+  geminiFileId    String?  // For semantic search
+  usageCount      Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([category])
+}
+
+model ProposalTemplate {
+  id              String   @id @default(uuid())
+  name            String
+  clientType      String?
+  serviceType     String?
+  content         String   @db.Text
+  sections        Json     // Structured proposal sections
+  geminiFileId    String?  // For proposal generation
+  variables       String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
