@@ -7,6 +7,26 @@ import cvParserService from '../services/cvParser.service';
 const router = Router();
 const prisma = new PrismaClient();
 
+/**
+ * Sanitize data for PostgreSQL (remove null bytes)
+ */
+function sanitizeForPostgres(obj: any): any {
+  if (typeof obj === 'string') {
+    return obj.replace(/\x00/g, '').replace(/[\x01-\x08\x0B-\x0C\x0E-\x1F]/g, '');
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeForPostgres(item));
+  }
+  if (obj && typeof obj === 'object') {
+    const sanitized: any = {};
+    for (const key in obj) {
+      sanitized[key] = sanitizeForPostgres(obj[key]);
+    }
+    return sanitized;
+  }
+  return obj;
+}
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -110,24 +130,27 @@ router.post('/upload', upload.single('cv'), async (req: Request, res: Response) 
       ? (typeof education === 'string' ? education : JSON.stringify(education))
       : (processed.extractedInfo?.education || '{}');
 
+    // Sanitize all data before database insertion to prevent null byte errors
+    const sanitizedData = sanitizeForPostgres({
+      firstName,
+      lastName,
+      email,
+      phone: phone || processed.extractedInfo?.phone || null,
+      location: location || processed.extractedInfo?.location || null,
+      cvFilePath: req.file.path,
+      cvText: processed.cvText,
+      geminiFileId: processed.geminiFileId,
+      skills: finalSkills,
+      experience: finalExperience,
+      education: finalEducation,
+      source: source || 'UPLOAD',
+      parsedData: processed.extractedInfo,
+      status: 'NEW'
+    });
+
     // Create candidate with all extracted fields
     const candidate = await prisma.candidate.create({
-      data: {
-        firstName,
-        lastName,
-        email,
-        phone: phone || processed.extractedInfo?.phone || null,
-        location: location || processed.extractedInfo?.location || null,
-        cvFilePath: req.file.path,
-        cvText: processed.cvText,
-        geminiFileId: processed.geminiFileId,
-        skills: finalSkills,
-        experience: finalExperience,
-        education: finalEducation,
-        source: source || 'UPLOAD',
-        parsedData: processed.extractedInfo,
-        status: 'NEW'
-      }
+      data: sanitizedData
     });
 
     console.log('Candidate created successfully:', candidate.id);

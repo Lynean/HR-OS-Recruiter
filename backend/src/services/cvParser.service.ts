@@ -5,6 +5,42 @@ import geminiService from './gemini.service';
 
 export class CVParserService {
   /**
+   * Remove null bytes and other problematic characters from string
+   * PostgreSQL doesn't allow null bytes in text fields
+   */
+  private sanitizeText(text: string): string {
+    if (!text) return '';
+
+    // Remove null bytes and other control characters except newlines and tabs
+    return text
+      .replace(/\x00/g, '') // Remove null bytes
+      .replace(/[\x01-\x08\x0B-\x0C\x0E-\x1F]/g, '') // Remove other control chars
+      .trim();
+  }
+
+  /**
+   * Sanitize all string fields in an object recursively
+   */
+  private sanitizeObject(obj: any): any {
+    if (typeof obj === 'string') {
+      return this.sanitizeText(obj);
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.sanitizeObject(item));
+    }
+
+    if (obj && typeof obj === 'object') {
+      const sanitized: any = {};
+      for (const key in obj) {
+        sanitized[key] = this.sanitizeObject(obj[key]);
+      }
+      return sanitized;
+    }
+
+    return obj;
+  }
+  /**
    * Parse CV file and extract text
    */
   async parseCV(filePath: string): Promise<string> {
@@ -31,7 +67,8 @@ export class CVParserService {
     try {
       const dataBuffer = fs.readFileSync(filePath);
       const data = await pdfParse(dataBuffer);
-      return data.text;
+      // Sanitize the extracted text to remove null bytes and control characters
+      return this.sanitizeText(data.text);
     } catch (error) {
       console.error('Error parsing PDF:', error);
       throw new Error('Failed to parse PDF file');
@@ -43,7 +80,9 @@ export class CVParserService {
    */
   private async parseTXT(filePath: string): Promise<string> {
     try {
-      return fs.readFileSync(filePath, 'utf-8');
+      const text = fs.readFileSync(filePath, 'utf-8');
+      // Sanitize the text to remove null bytes and control characters
+      return this.sanitizeText(text);
     } catch (error) {
       console.error('Error parsing text file:', error);
       throw new Error('Failed to parse text file');
@@ -66,13 +105,16 @@ export class CVParserService {
       const experienceMatch = cvText.match(/(\d+)\+?\s*(years?|yrs?)\s*(of\s*)?experience/i);
       const experience = experienceMatch ? parseInt(experienceMatch[1]) : null;
 
-      return {
+      const basicData = {
         email: emailMatch ? emailMatch[0] : null,
         phone: phoneMatch ? phoneMatch[0].trim() : null,
         experience: experience,
         skills: skills,
         rawText: cvText
       };
+
+      // Sanitize all string fields
+      return this.sanitizeObject(basicData);
     } catch (error) {
       console.error('Error extracting CV information:', error);
       return null;
@@ -139,7 +181,7 @@ Return the extracted data as a JSON object:`;
       }
 
       // Validate and clean the data
-      return {
+      const cleanData = {
         firstName: extractedData.firstName || null,
         lastName: extractedData.lastName || null,
         email: extractedData.email || null,
@@ -157,6 +199,9 @@ Return the extracted data as a JSON object:`;
         portfolio: extractedData.portfolio || null,
         rawText: cvText
       };
+
+      // Sanitize all string fields to remove null bytes
+      return this.sanitizeObject(cleanData);
     } catch (error) {
       console.error('Error extracting comprehensive CV data:', error);
       // Fallback to basic extraction
@@ -207,14 +252,14 @@ Return the extracted data as a JSON object:`;
     try {
       console.log('Parsing CV for auto-fill:', filePath);
 
-      // 1. Parse CV to extract text
+      // 1. Parse CV to extract text (already sanitized in parseCV)
       const cvText = await this.parseCV(filePath);
 
-      // 2. Extract comprehensive data
+      // 2. Extract comprehensive data (already sanitized in extractComprehensiveCVData)
       const extractedData = await this.extractComprehensiveCVData(cvText);
 
       // 3. Format for candidate creation
-      return {
+      const formattedData = {
         // Basic Information
         firstName: extractedData.firstName,
         lastName: extractedData.lastName,
@@ -241,6 +286,9 @@ Return the extracted data as a JSON object:`;
         // Raw CV text
         cvText: cvText
       };
+
+      // Double-check sanitization (defensive programming)
+      return this.sanitizeObject(formattedData);
     } catch (error) {
       console.error('Error parsing CV for auto-fill:', error);
       throw error;
