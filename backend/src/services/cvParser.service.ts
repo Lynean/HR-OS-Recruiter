@@ -80,18 +80,114 @@ export class CVParserService {
   }
 
   /**
-   * Full CV processing pipeline
+   * Extract comprehensive candidate information from CV using AI
+   */
+  async extractComprehensiveCVData(cvText: string) {
+    try {
+      const prompt = `
+You are an expert CV/Resume parser. Analyze the following CV text and extract all relevant information in a structured JSON format.
+
+Extract the following fields:
+1. firstName: First name of the candidate
+2. lastName: Last name of the candidate
+3. email: Email address
+4. phone: Phone number (with country code if available)
+5. location: Current location/city/country
+6. skills: Array of technical and soft skills (be comprehensive)
+7. experience: Total years of professional experience (as a number)
+8. education: Array of education entries with format: { degree: string, institution: string, year: string, field: string }
+9. workHistory: Array of work experience with format: { title: string, company: string, duration: string, description: string }
+10. certifications: Array of certifications with format: { name: string, issuer: string, year: string }
+11. languages: Array of languages with proficiency levels
+12. summary: Professional summary or objective (2-3 sentences)
+13. linkedIn: LinkedIn profile URL if mentioned
+14. github: GitHub profile URL if mentioned
+15. portfolio: Portfolio or personal website URL if mentioned
+
+IMPORTANT RULES:
+- Return ONLY valid JSON, no markdown formatting, no code blocks
+- If a field is not found, use null for strings, [] for arrays, or 0 for numbers
+- For skills, extract ALL mentioned skills including programming languages, frameworks, tools, soft skills
+- For experience (years), calculate the total based on work history dates
+- Be thorough and accurate
+
+CV Text:
+${cvText}
+
+Return the extracted data as a JSON object:`;
+
+      const result = await geminiService.generateContent(prompt);
+
+      // Parse the response as JSON
+      let extractedData;
+      try {
+        // Remove markdown code blocks if present
+        let cleanedResult = result.trim();
+        if (cleanedResult.startsWith('```json')) {
+          cleanedResult = cleanedResult.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+        } else if (cleanedResult.startsWith('```')) {
+          cleanedResult = cleanedResult.replace(/```\n?/g, '');
+        }
+
+        extractedData = JSON.parse(cleanedResult);
+      } catch (parseError) {
+        console.error('Failed to parse Gemini response as JSON:', parseError);
+        console.error('Response was:', result);
+
+        // Fallback to basic extraction
+        return this.extractCVInformation(cvText);
+      }
+
+      // Validate and clean the data
+      return {
+        firstName: extractedData.firstName || null,
+        lastName: extractedData.lastName || null,
+        email: extractedData.email || null,
+        phone: extractedData.phone || null,
+        location: extractedData.location || null,
+        skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
+        experience: typeof extractedData.experience === 'number' ? extractedData.experience : 0,
+        education: Array.isArray(extractedData.education) ? extractedData.education : [],
+        workHistory: Array.isArray(extractedData.workHistory) ? extractedData.workHistory : [],
+        certifications: Array.isArray(extractedData.certifications) ? extractedData.certifications : [],
+        languages: Array.isArray(extractedData.languages) ? extractedData.languages : [],
+        summary: extractedData.summary || null,
+        linkedIn: extractedData.linkedIn || null,
+        github: extractedData.github || null,
+        portfolio: extractedData.portfolio || null,
+        rawText: cvText
+      };
+    } catch (error) {
+      console.error('Error extracting comprehensive CV data:', error);
+      // Fallback to basic extraction
+      return this.extractCVInformation(cvText);
+    }
+  }
+
+  /**
+   * Full CV processing pipeline with comprehensive AI extraction
    */
   async processCV(filePath: string, candidateName: string) {
     try {
+      console.log('Starting CV processing for:', candidateName);
+
       // 1. Parse CV to extract text
       const cvText = await this.parseCV(filePath);
+      console.log('CV text extracted, length:', cvText.length);
 
-      // 2. Extract structured information
-      const extractedInfo = await this.extractCVInformation(cvText);
+      // 2. Extract comprehensive structured information using AI
+      const extractedInfo = await this.extractComprehensiveCVData(cvText);
+      console.log('Comprehensive data extracted:', {
+        firstName: extractedInfo.firstName,
+        lastName: extractedInfo.lastName,
+        email: extractedInfo.email,
+        skillsCount: extractedInfo.skills?.length || 0,
+        workHistoryCount: extractedInfo.workHistory?.length || 0
+      });
 
       // 3. Upload to Gemini for file search
       const geminiUpload = await geminiService.uploadCV(filePath, candidateName);
+      console.log('CV uploaded to Gemini:', geminiUpload.fileId);
 
       return {
         cvText,
@@ -101,6 +197,53 @@ export class CVParserService {
     } catch (error) {
       console.error('Error processing CV:', error);
       throw new Error('Failed to process CV');
+    }
+  }
+
+  /**
+   * Parse CV and extract all fields for auto-filling candidate form
+   */
+  async parseAndExtractAllFields(filePath: string) {
+    try {
+      console.log('Parsing CV for auto-fill:', filePath);
+
+      // 1. Parse CV to extract text
+      const cvText = await this.parseCV(filePath);
+
+      // 2. Extract comprehensive data
+      const extractedData = await this.extractComprehensiveCVData(cvText);
+
+      // 3. Format for candidate creation
+      return {
+        // Basic Information
+        firstName: extractedData.firstName,
+        lastName: extractedData.lastName,
+        email: extractedData.email,
+        phone: extractedData.phone,
+        location: extractedData.location,
+
+        // Professional Information
+        skills: extractedData.skills,
+        experience: extractedData.experience,
+
+        // Additional Information (stored as JSON in education field)
+        education: JSON.stringify({
+          education: extractedData.education,
+          workHistory: extractedData.workHistory,
+          certifications: extractedData.certifications,
+          languages: extractedData.languages,
+          summary: extractedData.summary,
+          linkedIn: extractedData.linkedIn,
+          github: extractedData.github,
+          portfolio: extractedData.portfolio
+        }),
+
+        // Raw CV text
+        cvText: cvText
+      };
+    } catch (error) {
+      console.error('Error parsing CV for auto-fill:', error);
+      throw error;
     }
   }
 }

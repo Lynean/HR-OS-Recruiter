@@ -35,7 +35,41 @@ const upload = multer({
 });
 
 /**
- * Upload CV and create candidate
+ * Parse CV and extract data (for preview/auto-fill) - does NOT create candidate
+ */
+router.post('/parse-cv', upload.single('cv'), async (req: Request, res: Response) => {
+  try {
+    console.log('CV parse request received');
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Parse CV and extract all fields
+    const extractedData = await cvParserService.parseAndExtractAllFields(req.file.path);
+
+    console.log('CV parsed successfully:', {
+      firstName: extractedData.firstName,
+      lastName: extractedData.lastName,
+      email: extractedData.email
+    });
+
+    res.json({
+      success: true,
+      data: extractedData,
+      message: 'CV parsed successfully. Review and modify the extracted data before submitting.'
+    });
+  } catch (error: any) {
+    console.error('CV parse error:', error);
+    res.status(500).json({
+      error: 'Failed to parse CV',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+/**
+ * Upload CV and create candidate with comprehensive auto-filled data
  */
 router.post('/upload', upload.single('cv'), async (req: Request, res: Response) => {
   try {
@@ -47,7 +81,7 @@ router.post('/upload', upload.single('cv'), async (req: Request, res: Response) 
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const { firstName, lastName, email, phone, location } = req.body;
+    const { firstName, lastName, email, phone, location, skills, experience, education, source } = req.body;
 
     // Validate required fields
     if (!firstName || !lastName || !email) {
@@ -56,33 +90,53 @@ router.post('/upload', upload.single('cv'), async (req: Request, res: Response) 
       });
     }
 
-    // Process CV
+    // Process CV with comprehensive extraction
     const candidateName = `${firstName} ${lastName}`;
     console.log('Processing CV for:', candidateName);
 
     const processed = await cvParserService.processCV(req.file.path, candidateName);
-    console.log('CV processed successfully');
+    console.log('CV processed successfully with comprehensive data');
 
-    // Create candidate
+    // Use provided data or fall back to extracted data
+    const finalSkills = skills
+      ? (typeof skills === 'string' ? JSON.parse(skills) : skills)
+      : (processed.extractedInfo?.skills || []);
+
+    const finalExperience = experience !== undefined
+      ? (typeof experience === 'string' ? parseFloat(experience) : experience)
+      : (processed.extractedInfo?.experience || 0);
+
+    const finalEducation = education
+      ? (typeof education === 'string' ? education : JSON.stringify(education))
+      : (processed.extractedInfo?.education || '{}');
+
+    // Create candidate with all extracted fields
     const candidate = await prisma.candidate.create({
       data: {
         firstName,
         lastName,
         email,
-        phone: phone || processed.extractedInfo?.phone,
-        location,
+        phone: phone || processed.extractedInfo?.phone || null,
+        location: location || processed.extractedInfo?.location || null,
         cvFilePath: req.file.path,
         cvText: processed.cvText,
         geminiFileId: processed.geminiFileId,
-        skills: processed.extractedInfo?.skills?.technicalSkills || [],
-        experience: processed.extractedInfo?.experience,
-        education: [],
+        skills: finalSkills,
+        experience: finalExperience,
+        education: finalEducation,
+        source: source || 'UPLOAD',
         parsedData: processed.extractedInfo,
         status: 'NEW'
       }
     });
 
-    res.status(201).json(candidate);
+    console.log('Candidate created successfully:', candidate.id);
+
+    res.status(201).json({
+      success: true,
+      candidate,
+      message: 'Candidate created successfully with auto-filled data from CV'
+    });
   } catch (error: any) {
     console.error('Upload error:', error);
 

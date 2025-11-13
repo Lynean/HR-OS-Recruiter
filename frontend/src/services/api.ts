@@ -21,6 +21,9 @@ api.interceptors.request.use((config) => {
 export const candidateAPI = {
   getAll: (params?: any) => api.get('/candidates', { params }),
   getById: (id: string) => api.get(`/candidates/${id}`),
+  parseCV: (formData: FormData) => api.post('/candidates/parse-cv', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
   upload: (formData: FormData) => api.post('/candidates/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
